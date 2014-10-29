@@ -2,6 +2,8 @@
 import httplib2
 import json
 import base64
+import threading
+
 from email import message_from_string
 from email.mime.audio import MIMEAudio
 from email.mime.base import MIMEBase
@@ -37,6 +39,47 @@ maillist = []
 
 print "INIT"
 
+def refreshToken(tid, service_thread, idlist_thread, idlist_json):
+  global maillist
+  ret = []
+  index = 0
+  length = len(idlist_thread) 
+  for lID in idlist_thread:
+    index += 1
+    if lID in idlist_json:
+      continue
+    msg = service_thread.users().messages().get(userId='me',id=lID).execute()
+    payload = msg['payload']
+    lSnippet = msg['snippet']
+    lFrom = ''
+    lTo = ''
+    lSubject = ''
+    for item in payload['headers']:
+      if item['name'] == 'From':
+       lFrom = item['value']
+      if item['name'] == 'To':
+        lTo = item['value']
+      if item['name'] == 'Subject':
+        lSubject = item['value']
+    attach = []
+    if 'parts' in payload.keys():
+      lFilename = ''
+      lAttachID = ''
+      lSize = ''
+      for item in payload['parts']:
+        if item['filename']:
+          lFilename = item['filename']
+          body = item['body']
+          if 'attachmentId' in body.keys():
+            lAttachID = body['attachmentId']
+          else:
+            continue;
+          lSize = body['size']
+          attach.append({'filename' : lFilename, 'attachId' : lAttachID, 'size' : lSize})
+    maillist.append({'id' : lID, 'from' : lFrom, 'to' : lTo, 'subject' : lSubject, 'snippet' : lSnippet, 'attach' : attach})
+    print tid,':',index,'OF',length,'MAILS'
+  return ret
+
 def refresh():
   global maillist
   idlist_json = []
@@ -52,49 +95,19 @@ def refresh():
   except IOError, e:
     print "CREATE mail.json"
   lToken = ''
+  idlist_threads = []
   while True:
+    idlist_thread = []
     if lToken != '':
       messages = service.users().messages().list(userId = 'me', pageToken = lToken).execute()
     else:
       messages = service.users().messages().list(userId = 'me').execute()
-    index = 0
-    length = len(messages['messages'])
+    lID = ''
     for message in messages['messages']:
-      index += 1
       lID = message['id']
       idlist_server.append(lID)
-      if lID in idlist_json:
-    	  continue
-      msg = service.users().messages().get(userId='me',id=lID).execute()
-      payload = msg['payload']
-      lSnippet = msg['snippet']
-      lFrom = ''
-      lTo = ''
-      lSubject = ''
-      for item in payload['headers']:
-        if item['name'] == 'From':
-  	      lFrom = item['value']
-        if item['name'] == 'To':
-          lTo = item['value']
-        if item['name'] == 'Subject':
-          lSubject = item['value']
-      attach = []
-      if 'parts' in payload.keys():
-        lFilename = ''
-        lAttachID = ''
-        lSize = ''
-        for item in payload['parts']:
-          if item['filename']:
-            lFilename = item['filename']
-            body = item['body']
-            if 'attachmentId' in body.keys():
-              lAttachID = body['attachmentId']
-            else:
-              continue;
-            lSize = body['size']
-            attach.append({'filename' : lFilename, 'attachId' : lAttachID, 'size' : lSize})
-      maillist.append({'id' : lID, 'from' : lFrom, 'to' : lTo, 'subject' : lSubject, 'snippet' : lSnippet, 'attach' : attach})
-      print index,'OF',length,'MAILS'
+      idlist_thread.append(lID)
+    idlist_threads.append(idlist_thread)
     if 'nextPageToken' in messages.keys():
       lToken = messages['nextPageToken']
       print 'TOKEN:',lToken
@@ -105,6 +118,35 @@ def refresh():
   for item in maillist:
     if item['id'] not in idlist_server:
       maillist.remove(item) 
+
+  #multithread
+  threads = []
+  STORAGE_THREADS = []
+  flow_threads = []
+  http_threads = []
+  credentials_threads = []
+  service_thread = []
+  tid = 0
+  for idlist_thread in idlist_threads:
+    STORAGE_THREADS.append(Storage('gamil_t%d.storage' % tid))
+    flow_threads.append(flow_from_clientsecrets(CLIENT_SECRET_FILE, scope=OAUTH_SCOPE))
+    http_threads.append(httplib2.Http())
+
+    credentials_threads.append(STORAGE_THREADS[tid].get())
+    if credentials_threads[tid] is None or credentials_threads[tid].invalid:
+      credentials_threads[tid] = run(flow_threads[tid], STORAGE_THREADS[tid], http=http_threads[tid])
+
+    http_threads[tid] = credentials_threads[tid].authorize(http_threads[tid])
+    service_thread.append(build('gmail', 'v1', http=http_threads[tid]))
+    threads.append(threading.Thread(target=refreshToken, args=(tid, service_thread[tid], idlist_thread, idlist_json)))
+    tid += 1
+  ######################
+  for thread in threads:
+    thread.start()
+
+  for thread in threads:
+    while thread.isAlive():
+      continue;
 
   fout = open('mail.json', 'w')
   fout.write(json.dumps(maillist, ensure_ascii=False).encode('utf-8'))
@@ -162,7 +204,7 @@ def listAttach():
   global maillist
   for msg in maillist:
     for attach in msg['attach']:
-    	printAttach(msg,attach)
+      printAttach(msg,attach)
 
 def findMailBySend(lSend):
   global maillist
@@ -201,7 +243,7 @@ def getAttach(lID, lAttachID):
   for msg in maillist:
     for attach in msg['attach']:
       if msg['id'] == lID and attach['attachId'] == lAttachID:
-      	print 'DOWNLOADING'
+        print 'DOWNLOADING'
         filename = attach['filename']
         fout = open(filename.encode('utf-8'), 'w')
         attachment = service.users().messages().attachments().get(userId='me',messageId=lID,id=lAttachID).execute()
@@ -216,7 +258,7 @@ def getAttachByName(lName):
   for msg in maillist:
     for attach in msg['attach']:
       if attach['filename'] == lName:
-      	print 'DOWNLOADING'
+        print 'DOWNLOADING'
         fout = open(lName.encode('utf-8'), 'w')
         attachment = service.users().messages().attachments().get(userId='me',messageId=msg['id'],id=attach['attachId']).execute()
         fout.write(base64.urlsafe_b64decode(attachment['data'].encode('utf-8')))
