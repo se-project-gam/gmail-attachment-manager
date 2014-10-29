@@ -41,7 +41,6 @@ print "INIT"
 
 def refreshToken(tid, service_thread, idlist_thread, idlist_json):
   global maillist
-  ret = []
   index = 0
   length = len(idlist_thread) 
   for lID in idlist_thread:
@@ -54,6 +53,7 @@ def refreshToken(tid, service_thread, idlist_thread, idlist_json):
     lFrom = ''
     lTo = ''
     lSubject = ''
+    lDate = ''
     for item in payload['headers']:
       if item['name'] == 'From':
        lFrom = item['value']
@@ -61,6 +61,8 @@ def refreshToken(tid, service_thread, idlist_thread, idlist_json):
         lTo = item['value']
       if item['name'] == 'Subject':
         lSubject = item['value']
+      if item['name'] == 'Date':
+        lDate = item['value']
     attach = []
     if 'parts' in payload.keys():
       lFilename = ''
@@ -76,9 +78,8 @@ def refreshToken(tid, service_thread, idlist_thread, idlist_json):
             continue;
           lSize = body['size']
           attach.append({'filename' : lFilename, 'attachId' : lAttachID, 'size' : lSize})
-    maillist.append({'id' : lID, 'from' : lFrom, 'to' : lTo, 'subject' : lSubject, 'snippet' : lSnippet, 'attach' : attach})
+    maillist.append({'id' : lID, 'from' : lFrom, 'to' : lTo, 'subject' : lSubject,'date' : lDate, 'snippet' : lSnippet, 'attach' : attach})
     print tid,':',index,'OF',length,'MAILS'
-  return ret
 
 def refresh():
   global maillist
@@ -158,6 +159,7 @@ def printMail(msg):
   print 'From:',msg['from'].encode('utf-8')
   print 'To:',msg['to'].encode('utf-8')
   print 'Subject:',msg['subject'].encode('utf-8')
+  print 'Date:',msg['date'].encode('utf-8')
   for attach in msg['attach']:
     print 'Filename:',attach['filename'].encode('utf-8')
     print 'AttachID:',attach['attachId'].encode('utf-8')
@@ -175,6 +177,7 @@ def printAttach(msg,attach):
   print 'From:',msg['from'].encode('utf-8')
   print 'To:',msg['to'].encode('utf-8')
   print 'Subject:',msg['subject'].encode('utf-8')
+  print 'Date:',msg['date'].encode('utf-8')
   print msg['snippet'].encode('utf-8')
   print
 
