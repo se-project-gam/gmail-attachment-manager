@@ -2,14 +2,22 @@
 import httplib2
 import json
 import base64
+from email.mime.audio import MIMEAudio
+from email.mime.base import MIMEBase
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import mimetypes
+import os
 
+from apiclient import errors
 from apiclient.discovery import build
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
 from oauth2client.tools import run
 
 CLIENT_SECRET_FILE = 'client_secret.json'
-OAUTH_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly'
+OAUTH_SCOPE = 'https://mail.google.com/'
 STORAGE = Storage('gmail.storage')
 
 flow = flow_from_clientsecrets(CLIENT_SECRET_FILE, scope=OAUTH_SCOPE)
@@ -30,7 +38,9 @@ print "INIT"
 def refresh():
   global maillist
   fin = open('mail.json', 'r')
-  maillist = json.loads(fin.read().decode('utf-8'))
+  data = fin.read().decode('utf-8')
+  if data != '':
+    maillist = json.loads(data)
   fin.close()
   
   idlist = []
@@ -166,12 +176,63 @@ def getAttachByName(lName):
         return
   print 'NOT FOUND'
 
-def newMail(lFrom, lTo, lSubject):
-  #ToDo
-  return
+def newMail(lFrom, lTo, lSubject, lText):
+  message = MIMEText(lText)
+  message['from'] = lFrom
+  message['to'] = lTo
+  message['subject'] = lSubject
+  return {'raw': base64.urlsafe_b64encode(message.as_string())}
+
+def newMailWithNewAttach(lFrom, lTo, lSubject, lText, lDir, lName):
+  message = MIMEMultipart()
+  message['from'] = lFrom
+  message['to'] = lTo
+  message['subject'] = lSubject
+
+  msg = MIMEText(lText)
+  message.attach(msg)
+
+  path = os.path.join(lDir, lName)
+  content_type, encoding = mimetypes.guess_type(path)
+
+  if content_type is None or encoding is not None:
+    content_type = 'application/octet-stream'
+  main_type, sub_type = content_type.split('/', 1)
+  if main_type == 'text':
+    fp = open(path, 'rb')
+    msg = MIMEText(fp.read(), _subtype=sub_type)
+    fp.close()
+  elif main_type == 'image':
+    fp = open(path, 'rb')
+    msg = MIMEImage(fp.read(), _subtype=sub_type)
+    fp.close()
+  elif main_type == 'audio':
+    fp = open(path, 'rb')
+    msg = MIMEAudio(fp.read(), _subtype=sub_type)
+    fp.close()
+  else:
+    fp = open(path, 'rb')
+    msg = MIMEBase(main_type, sub_type)
+    msg.set_payload(fp.read())
+    fp.close()
+
+  msg.add_header('Content-Disposition', 'attachment', filename=filename)
+  message.attach(msg)
+
+  return {'raw': base64.urlsafe_b64encode(message.as_string())}
+
+def sendMail(message):
+  try:
+    message = (service.users().messages().send(userId='me', body=message).execute())
+    print 'Message Id: %s' % message['id']
+    return message
+  except errors.HttpError, error:
+    print 'An error occurred: %s' % error
 
 def help():
-  print "Useage: newMail(From,To,Subject)"
+  print "Useage: newMail(From,To,Subject,Text)"
+  print "        newMailWithNewAttach(From,To,Subject,Text, Dir, lName)"
+  print "        sendMail()"
   print "        findMailBySend()|findMailByRecv()|findMailBySubj()"
   print "        listMail()"
   print "========================"
@@ -181,6 +242,7 @@ def help():
   print "========================"
   print "        help()"
   print "        exit()"
+
 
 refresh()
 
