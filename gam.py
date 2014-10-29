@@ -149,6 +149,8 @@ def refresh():
     while thread.isAlive():
       continue;
 
+  maillist = sorted(maillist,key=lambda mail: idlist_server.index(mail['id']))
+
   fout = open('mail.json', 'w')
   fout.write(json.dumps(maillist, ensure_ascii=False).encode('utf-8'))
   fout.close()
@@ -382,9 +384,6 @@ def help():
   print "        ----"
   print "        help()"
   print "        exit()"
-
-#TO-DO
-# MultiThread
 
 refresh()
 
