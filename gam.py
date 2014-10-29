@@ -37,16 +37,17 @@ print "INIT"
 
 def refresh():
   global maillist
-  fin = open('mail.json', 'r')
-  data = fin.read().decode('utf-8')
-  if data != '':
-    maillist = json.loads(data)
-  fin.close()
-  
   idlist = []
-  for item in maillist:
-    idlist.append(item['id'])
-  
+  try:
+    fin = open('mail.json', 'r')
+    data = fin.read().decode('utf-8')
+    if data != '':
+      maillist = json.loads(data)
+    fin.close()
+    for item in maillist:
+      idlist.append(item['id'])
+  except IOError, e:
+   print "CREATE mail.json"
   messages = service.users().messages().list(userId='me').execute()
   length = len(messages['messages'])
   index = 0
@@ -58,6 +59,9 @@ def refresh():
     msg = service.users().messages().get(userId='me',id=lID).execute()
     payload = msg['payload']
     lSnippet = msg['snippet']
+    lFrom = ''
+    lTo = ''
+    lSubject = ''
     for item in payload['headers']:
       if item['name'] == 'From':
   	lFrom = item['value']
@@ -67,6 +71,9 @@ def refresh():
         lSubject = item['value']
     attach = []
     if 'parts' in payload.keys():
+      lFilename = ''
+      lAttachID = ''
+      lSize = ''
       for item in payload['parts']:
         if item['filename']:
           lFilename = item['filename']
@@ -178,16 +185,16 @@ def getAttachByName(lName):
 
 def newMail(lFrom, lTo, lSubject, lText):
   message = MIMEText(lText)
-  message['from'] = lFrom
-  message['to'] = lTo
-  message['subject'] = lSubject
-  return {'raw': base64.urlsafe_b64encode(message.as_string())}
+  message['From'] = lFrom
+  message['To'] = lTo
+  message['Subject'] = lSubject
+  return {'raw': base64.b64encode(message.as_string())}
 
 def newMailWithNewAttach(lFrom, lTo, lSubject, lText, lDir, lName):
   message = MIMEMultipart()
-  message['from'] = lFrom
-  message['to'] = lTo
-  message['subject'] = lSubject
+  message['From'] = lFrom
+  message['To'] = lTo
+  message['Subject'] = lSubject
 
   msg = MIMEText(lText)
   message.attach(msg)
@@ -216,7 +223,7 @@ def newMailWithNewAttach(lFrom, lTo, lSubject, lText, lDir, lName):
     msg.set_payload(fp.read())
     fp.close()
 
-  msg.add_header('Content-Disposition', 'attachment', filename=filename)
+  msg.add_header('Content-Disposition', 'attachment', filename=lName)
   message.attach(msg)
 
   return {'raw': base64.urlsafe_b64encode(message.as_string())}
@@ -231,7 +238,7 @@ def sendMail(message):
 
 def help():
   print "Useage: newMail(From,To,Subject,Text)"
-  print "        newMailWithNewAttach(From,To,Subject,Text, Dir, lName)"
+  print "        newMailWithNewAttach(From,To,Subject,Text,Dir,FileName)"
   print "        sendMail()"
   print "        findMailBySend()|findMailByRecv()|findMailBySubj()"
   print "        listMail()"
