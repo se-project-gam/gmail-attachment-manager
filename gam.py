@@ -228,6 +228,37 @@ def newMailWithNewAttach(lFrom, lTo, lSubject, lText, lDir, lName):
 
   return {'raw': base64.urlsafe_b64encode(message.as_string())}
 
+def newMailWithAttach(lFrom, lTo, lSubject, lText, lName):
+  data = ""
+  for msg in maillist:
+    for attach in msg['attach']:
+      if attach['filename'] == lName:
+        attachment = service.users().messages().attachments().get(userId='me',messageId=msg['id'],id=attach['attachId']).execute()
+        data = base64.urlsafe_b64decode(attachment['data'].encode('utf-8'))
+        message = MIMEMultipart()
+        message['From'] = lFrom
+        message['To'] = lTo
+        message['Subject'] = lSubject
+
+        msg = MIMEText(lText)
+        message.attach(msg)
+
+        content_type, encoding = mimetypes.guess_type(lName)
+
+        if content_type is None or encoding is not None:
+          content_type = 'application/octet-stream'
+        main_type, sub_type = content_type.split('/', 1)
+        if main_type == 'text' or main_type == 'image' or main_type == 'audio':
+          msg = MIMEText(data, _subtype=sub_type)
+        else:
+          msg = MIMEBase(main_type, sub_type)
+          msg.set_payload(data)
+
+        msg.add_header('Content-Disposition', 'attachment', filename=lName)
+        message.attach(msg)
+
+        return {'raw': base64.urlsafe_b64encode(message.as_string())}
+
 def sendMail(message):
   try:
     message = (service.users().messages().send(userId='me', body=message).execute())
@@ -236,11 +267,25 @@ def sendMail(message):
   except errors.HttpError, error:
     print 'An error occurred: %s' % error
 
+def trashMail(lID):
+  service.users().messages().trash(userId='me',id=lID).execute()
+  print 'MAIL TRASHED'
+
+def untrashMail(lID):
+  service.users().messages().untrash(userId='me',id=lID).execute()
+  print 'MAIL UNTRASHED'
+
+def deleteMail(lID):
+  service.users().messages().delete(userId='me',id=lID).execute()
+  print 'MAIL DELETED'
+
 def help():
   print "Useage: newMail(From,To,Subject,Text)"
+  print "        newMailWithAttach(From,To,Subject,Text,FileName)"
   print "        newMailWithNewAttach(From,To,Subject,Text,Dir,FileName)"
   print "        sendMail()"
   print "        findMailBySend()|findMailByRecv()|findMailBySubj()"
+  print "        trashMail()|untrashMail()|deleteMail()"
   print "        listMail()"
   print "========================"
   print "        getAttach(MailID,AttachID)|getAttachByName()"
@@ -252,8 +297,6 @@ def help():
 
 #TO-DO
 # ShowMail()
-# NewMailWithAttach()
-# DeleteMail()
 # Update refresh()
 # MultiThread
 
