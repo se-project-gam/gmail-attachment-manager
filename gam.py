@@ -33,12 +33,14 @@ service = build('gmail', 'v1', http=http)
 
 print "CONNECT SUCCESS"
 
-maillist = [];
+maillist = []
+
 print "INIT"
 
 def refresh():
   global maillist
-  idlist = []
+  idlist_json = []
+  idlist_server = []
   try:
     fin = open('mail.json', 'r')
     data = fin.read().decode('utf-8')
@@ -46,7 +48,7 @@ def refresh():
       maillist = json.loads(data)
     fin.close()
     for item in maillist:
-      idlist.append(item['id'])
+      idlist_json.append(item['id'])
   except IOError, e:
     print "CREATE mail.json"
   lToken = ''
@@ -60,7 +62,8 @@ def refresh():
     for message in messages['messages']:
       index += 1
       lID = message['id']
-      if lID in idlist:
+      idlist_server.append(lID)
+      if lID in idlist_json:
     	  continue
       msg = service.users().messages().get(userId='me',id=lID).execute()
       payload = msg['payload']
@@ -98,6 +101,10 @@ def refresh():
     else:
       print 'REACH TAIL'
       break;
+  
+  for item in maillist:
+    if item['id'] not in idlist_server:
+      maillist.remove(item) 
 
   fout = open('mail.json', 'w')
   fout.write(json.dumps(maillist, ensure_ascii=False).encode('utf-8'))
@@ -148,6 +155,8 @@ def listMail():
   global maillist
   for msg in maillist:
     printMail(msg)
+  print '----'
+  print 'TOTAL:',len(maillist),'MAILS'
 
 def listAttach():
   global maillist
@@ -330,7 +339,6 @@ def help():
   print "        exit()"
 
 #TO-DO
-# Update refresh()
 # MultiThread
 
 refresh()
