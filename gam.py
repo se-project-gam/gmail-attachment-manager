@@ -2,6 +2,7 @@
 import httplib2
 import json
 import base64
+from email import message_from_string
 from email.mime.audio import MIMEAudio
 from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
@@ -84,7 +85,7 @@ def refresh():
     maillist.append({'id' : lID, 'from' : lFrom, 'to' : lTo, 'subject' : lSubject, 'snippet' : lSnippet, 'attach' : attach})
     print index,'OF',length,'MAILS'
   fout = open('mail.json', 'w')
-  fout.write(json.dumps(maillist, ensure_ascii=False).encode('utf8'))
+  fout.write(json.dumps(maillist, ensure_ascii=False).encode('utf-8'))
   fout.close()
   print "FINISH"
 
@@ -97,7 +98,7 @@ def printMail(msg):
     print 'Filename:',attach['filename'].encode('utf-8')
     print 'AttachID:',attach['attachId'].encode('utf-8')
     print 'Size:',attach['size']
-    print '------------'
+    print '----'
   print msg['snippet'].encode('utf-8')
   print
 
@@ -105,13 +106,28 @@ def printAttach(msg,attach):
   print 'Filename:',attach['filename'].encode('utf-8')
   print 'AttachID:',attach['attachId'].encode('utf-8')
   print 'Size:',attach['size']
-  print '------------'
+  print '----'
   print 'MAIL ID:', msg['id'].encode('utf-8')
   print 'From:',msg['from'].encode('utf-8')
   print 'To:',msg['to'].encode('utf-8')
   print 'Subject:',msg['subject'].encode('utf-8')
   print msg['snippet'].encode('utf-8')
   print
+
+
+def showMail(lID):
+  global maillist
+  for msg in maillist:
+    if msg['id'] == lID:
+      printMail(msg)
+      print '----'
+      message = service.users().messages().get(userId = 'me', id = lID, format = 'raw').execute()
+      msg_str = base64.urlsafe_b64decode(message['raw'].encode('utf-8'))
+      msg = message_from_string(msg_str)
+      for part in msg.get_payload():
+        if part.get_content_type() == 'text/plain':
+          print part.get_payload(decode = True)
+      return
 
 def listMail():
   global maillist
@@ -157,6 +173,7 @@ def findAttachByName(lName):
         printAttach(msg,attach)
 
 def getAttach(lID, lAttachID):
+  global maillist
   for msg in maillist:
     for attach in msg['attach']:
       if msg['id'] == lID and attach['attachId'] == lAttachID:
@@ -171,6 +188,7 @@ def getAttach(lID, lAttachID):
   print 'NOT FOUND'
 
 def getAttachByName(lName):
+  global maillist
   for msg in maillist:
     for attach in msg['attach']:
       if attach['filename'] == lName:
@@ -286,17 +304,17 @@ def help():
   print "        sendMail()"
   print "        findMailBySend()|findMailByRecv()|findMailBySubj()"
   print "        trashMail()|untrashMail()|deleteMail()"
+  print "        showMail()"
   print "        listMail()"
-  print "========================"
+  print "        ----"
   print "        getAttach(MailID,AttachID)|getAttachByName()"
   print "        findAttachByID()|findAttachByName()"
   print "        listAttach()"
-  print "========================"
+  print "        ----"
   print "        help()"
   print "        exit()"
 
 #TO-DO
-# ShowMail()
 # Update refresh()
 # MultiThread
 
