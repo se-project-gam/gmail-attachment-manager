@@ -3,6 +3,8 @@ import httplib2
 import json
 import base64
 import threading
+import sys
+import os
 
 from email import message_from_string
 from email.mime.audio import MIMEAudio
@@ -11,7 +13,7 @@ from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import mimetypes
-import os
+
 
 from apiclient import errors
 from apiclient.discovery import build
@@ -37,8 +39,12 @@ print "CONNECT SUCCESS"
 
 maillist = []
 
-print "INIT"
+print "INITIALIZE"
 
+def progress(width, percent):
+  sys.stdout.write ("SYNCHRONIZING [%s ]%d%%\r" % (('%%-%ds' % width) % (width * percent / 100 * '='), percent))
+  sys.stdout.flush()
+  
 def refreshToken(tid, service_thread, idlist_thread, idlist_json):
   global maillist
   index = 0
@@ -79,7 +85,6 @@ def refreshToken(tid, service_thread, idlist_thread, idlist_json):
           lSize = body['size']
           attach.append({'filename' : lFilename, 'attachId' : lAttachID, 'size' : lSize})
     maillist.append({'id' : lID, 'from' : lFrom, 'to' : lTo, 'subject' : lSubject,'date' : lDate, 'snippet' : lSnippet, 'attach' : attach})
-    print tid,':',index,'OF',length,'MAILS'
 
 def refresh():
   global maillist
@@ -113,7 +118,7 @@ def refresh():
       lToken = messages['nextPageToken']
       print 'TOKEN:',lToken
     else:
-      print 'REACH TAIL'
+      print 'TOKEN: REACH TAIL'
       break;
   
   for item in maillist:
@@ -145,9 +150,12 @@ def refresh():
   for thread in threads:
     thread.start()
 
-  for thread in threads:
-    while thread.isAlive():
-      continue;
+  while len(maillist) <= len(idlist_server):
+      progress(50,100 * len(maillist) / len(idlist_server))
+      if len(maillist) == len(idlist_server):
+        progress(50,100 * len(maillist) / len(idlist_server))
+        break
+  print
 
   maillist = sorted(maillist,key=lambda mail: idlist_server.index(mail['id']))
 
@@ -200,16 +208,26 @@ def showMail(lID):
 
 def listMail():
   global maillist
+  cmd = ''
   for msg in maillist:
     printMail(msg)
+    if cmd != 'q':
+      cmd = raw_input('')
   print '----'
   print 'TOTAL:',len(maillist),'MAILS'
 
 def listAttach():
   global maillist
+  cmd = ''
+  total = 0
   for msg in maillist:
     for attach in msg['attach']:
       printAttach(msg,attach)
+      total += 1
+      if cmd != 'q':
+        cmd = raw_input('')
+  print '----'
+  print 'TOTAL:',total,'ATTACHMENTS'
 
 def findMailBySend(lSend):
   global maillist
