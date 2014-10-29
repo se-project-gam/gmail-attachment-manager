@@ -18,7 +18,8 @@ function makeApiCall() {
   gapi.client.load('gmail', 'v1', function() {
     var messages = gapi.client.gmail.users.messages.list({
       'userId': 'me',
-      'q': 'has:attachment'
+
+      'pageToken' : '05572196950464279653'
     });
     messages.execute(function(resp) {
       var message = document.createElement('div');

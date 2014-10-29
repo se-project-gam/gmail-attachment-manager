@@ -48,42 +48,57 @@ def refresh():
     for item in maillist:
       idlist.append(item['id'])
   except IOError, e:
-   print "CREATE mail.json"
-  messages = service.users().messages().list(userId='me').execute()
-  length = len(messages['messages'])
-  index = 0
-  for message in messages['messages']:
-    index += 1
-    lID = message['id']
-    if lID in idlist:
-    	continue
-    msg = service.users().messages().get(userId='me',id=lID).execute()
-    payload = msg['payload']
-    lSnippet = msg['snippet']
-    lFrom = ''
-    lTo = ''
-    lSubject = ''
-    for item in payload['headers']:
-      if item['name'] == 'From':
-  	lFrom = item['value']
-      if item['name'] == 'To':
-        lTo = item['value']
-      if item['name'] == 'Subject':
-        lSubject = item['value']
-    attach = []
-    if 'parts' in payload.keys():
-      lFilename = ''
-      lAttachID = ''
-      lSize = ''
-      for item in payload['parts']:
-        if item['filename']:
-          lFilename = item['filename']
-          body = item['body']
-          lAttachID = body['attachmentId']
-          lSize = body['size']
-          attach.append({'filename' : lFilename, 'attachId' : lAttachID, 'size' : lSize})
-    maillist.append({'id' : lID, 'from' : lFrom, 'to' : lTo, 'subject' : lSubject, 'snippet' : lSnippet, 'attach' : attach})
-    print index,'OF',length,'MAILS'
+    print "CREATE mail.json"
+  lToken = ''
+  while True:
+    if lToken != '':
+      messages = service.users().messages().list(userId = 'me', pageToken = lToken).execute()
+    else:
+      messages = service.users().messages().list(userId = 'me').execute()
+    index = 0
+    length = len(messages['messages'])
+    for message in messages['messages']:
+      index += 1
+      lID = message['id']
+      if lID in idlist:
+    	  continue
+      msg = service.users().messages().get(userId='me',id=lID).execute()
+      payload = msg['payload']
+      lSnippet = msg['snippet']
+      lFrom = ''
+      lTo = ''
+      lSubject = ''
+      for item in payload['headers']:
+        if item['name'] == 'From':
+  	      lFrom = item['value']
+        if item['name'] == 'To':
+          lTo = item['value']
+        if item['name'] == 'Subject':
+          lSubject = item['value']
+      attach = []
+      if 'parts' in payload.keys():
+        lFilename = ''
+        lAttachID = ''
+        lSize = ''
+        for item in payload['parts']:
+          if item['filename']:
+            lFilename = item['filename']
+            body = item['body']
+            if 'attachmentId' in body.keys():
+              lAttachID = body['attachmentId']
+            else:
+              continue;
+            lSize = body['size']
+            attach.append({'filename' : lFilename, 'attachId' : lAttachID, 'size' : lSize})
+      maillist.append({'id' : lID, 'from' : lFrom, 'to' : lTo, 'subject' : lSubject, 'snippet' : lSnippet, 'attach' : attach})
+      print index,'OF',length,'MAILS'
+    if 'nextPageToken' in messages.keys():
+      lToken = messages['nextPageToken']
+      print 'TOKEN:',lToken
+    else:
+      print 'REACH TAIL'
+      break;
+
   fout = open('mail.json', 'w')
   fout.write(json.dumps(maillist, ensure_ascii=False).encode('utf-8'))
   fout.close()
