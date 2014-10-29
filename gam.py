@@ -250,6 +250,12 @@ def help():
   print "        help()"
   print "        exit()"
 
+#TO-DO
+# ShowMail()
+# NewMailWithAttach()
+# DeleteMail()
+# Update refresh()
+# MultiThread
 
 refresh()
 
