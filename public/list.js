@@ -33,6 +33,7 @@ function makeApiCall() {
           var lfrom = "";
           var lto = "";
           var lsubject = "";
+          console.log(rmsg);
           for (j in rmsg.payload.headers){
             var item = rmsg.payload.headers[j];
             if (item.name == 'From') lfrom = item.value;
